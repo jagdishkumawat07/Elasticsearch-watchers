@@ -1,0 +1,88 @@
+{
+  "trigger": {
+    "schedule": {
+      "hourly": {
+        "minute": [
+          15
+        ]
+      }
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",
+        "indices": [
+          "abc-*"
+        ],
+        "rest_total_hits_as_int": true,
+        "body": {
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "bool": {
+                    "should": [
+                      {
+                        "exists": {
+                          "field": "labels.environment.keyword"
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-15m",
+                      "lte": "now"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.hits.total": {
+        "eq": 0
+      }
+    }
+  },
+  "actions": {
+    "my-logging-action": {
+      "logging": {
+        "level": "info",
+        "text": "There are {{ctx.payload.hits.total}} documents in your index. Threshold is 10."
+      }
+    },
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply-ELK-Prod@company-name.com",
+        "to": [
+          "xyz.company-name.com"
+        ],
+        "subject": "ELK ::No logs for last 15 min",
+        "body": {
+          "html": """
+<html>
+<head>
+</head>
+<body>
+<h3>No logs for last 15 min ! </h3>
+<p>Total logs generated for last 15 min: {{ctx.payload.hits.total}}</p>
+<br>
+</body>
+</html>
+		  """
+        }
+      }
+    }
+  }
+}

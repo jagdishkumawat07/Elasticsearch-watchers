@@ -1,0 +1,116 @@
+{
+  "trigger": {
+    "schedule": {
+      "hourly": {
+        "minute": [
+          45
+        ]
+      }
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",
+        "indices": [
+          "abc-*"
+        ],
+        "rest_total_hits_as_int": true,
+        "body": {
+          "size": 10,
+          "_source": [
+            "message",
+            "agent.hostname"
+          ],
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "bool": {
+                    "should": [
+                      {
+                        "match_phrase": {
+                          "loglevel.keyword": "Error"
+                        }
+                      }
+                    ],
+                    "minimum_should_match": 1
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-1h",
+                      "lte": "now"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.hits.total": {
+        "gte": 1
+      }
+    }
+  },
+  "actions": {
+    "my-logging-action": {
+      "logging": {
+        "level": "info",
+        "text": "There are {{ctx.payload.hits.total}} documents in your index. Threshold is 10."
+      }
+    },
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply-ELK-@company-name.com",
+        "to": [
+          "xyz@company-name.com"
+        ],
+        "subject": "ELK ::Error in log message",
+        "body": {
+          "html": """
+<html>
+<head>
+</head>
+<body>
+<h3>Error in log message </h3>
+<p>Total Error occured in last 1 Hour: {{ctx.payload.hits.total}}</p>
+<p>Below are top 10 Error:</p>
+<br>
+<br>
+
+
+<table border="1";
+       style="background-color:  #f2cf6f; 
+       border: gray; 
+       width: 100%;
+       padding: 16px;
+       text-align: left;
+       border-collapse: collapse;">
+<tr>
+<th>Message</th>
+<th>agent.hostname</th>
+
+</tr>
+{{#ctx.payload.hits.hits}}
+<tr>
+<td>{{_source.message}}</td>
+<td>{{_source.agent.hostname}}</td>
+</tr>
+{{/ctx.payload.hits.hits}}
+</table>
+</body>
+</html>
+		  """
+        }
+      }
+    }
+  }
+}

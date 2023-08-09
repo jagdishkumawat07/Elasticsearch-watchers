@@ -1,0 +1,91 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1h"
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",
+        "indices": [
+          "abc-*"
+        ],
+        "rest_total_hits_as_int": true,
+        "body": {
+          "size": 0,
+          "query": {
+            "bool": {
+              "must": [],
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-1h",
+                      "lt": "now/m"
+                    }
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "service.name": "some_service_name"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "error.code": "some_error_code"
+                  }
+                }
+              ],
+              "should": [],
+              "must_not": []
+            }
+          },
+          "aggs": {
+            "traffics": {
+              "date_range": {
+                "field": "@timestamp",
+                "ranges": [
+                  {
+                    "key": "error_event_traffic",
+                    "from": "now-1h"
+                  }
+                ],
+                "keyed": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "return ctx.payload.aggregations.traffics.buckets.error_event_traffic.doc_count >= 5",
+      "lang": "painless"
+    }
+  },
+  "actions": {
+    "create_bigpanda_event": {
+      "throttle_period_in_millis": 1800000,
+      "transform": {
+        "script": {
+          "source": " return [ 'alert_name': 'any_alert_name' ]",
+          "lang": "painless"
+        }
+      },
+      "webhook": {
+        "scheme": "https",
+        "host": "api.bigpanda.io",
+        "port": 443,
+        "method": "post",
+        "path": "/data/v2/alerts",
+        "params": {},
+        "headers": {
+          "Authorization": "fill_your_own"
+        },
+        "body": "{{#toJson}}ctx.payload{{/toJson}}"
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "30m"
+    }
+  },
+  "input": {
+    "http": {
+      "request": {
+        "scheme": "https",
+        "host": "some host name",
+        "port": 443,
+        "method": "get",
+        "path": "/_cluster/health",
+        "params": {},
+        "headers": {},
+        "auth": {
+          "basic": {
+            "username": "elastic",
+            "password": "::es_redacted::"
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.status": {
+        "not_eq": "green"
+      }
+    }
+  },
+  "actions": {
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply-CorpELK@company-name.com",
+        "to": [
+          "xyz@company-name.com"
+        ],
+        "subject": "ELK-Cluster Status in ERROR",
+        "body": {
+          "html": """
+<html>
+<head>
+</head>
+<body>
+Some body here
+</body>
+</html>      """
+        }
+      }
+  }
+}
+}

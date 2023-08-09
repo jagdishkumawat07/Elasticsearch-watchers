@@ -1,0 +1,149 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "first": {
+            "search": {
+              "request": {
+                "search_type": "query_then_fetch",
+                "indices": [
+                  "abc*"
+                ],
+                "rest_total_hits_as_int": true,
+                "body": {
+                  "size": 0,
+                  "query": {
+                    "bool": {
+                      "must": [],
+                      "filter": [
+                        {
+                          "range": {
+                            "@timestamp": {
+                              "gte": "now-60m",
+                              "lt": "now/m"
+                            }
+                          }
+                        },
+                        {
+                          "match_phrase": {
+                            "service.name": "some_service_name"
+                          }
+                        },
+                        {
+                          "match_phrase": {
+                            "some_field_name": "Some_value"
+                          }
+                        }
+                      ],
+                      "should": [],
+                      "must_not": []
+                    }
+                  },
+                  "aggs": {
+                    "traffics": {
+                      "date_range": {
+                        "field": "@timestamp",
+                        "ranges": [
+                          {
+                            "key": "bus_event_traffic",
+                            "from": "now-60m"
+                          }
+                        ],
+                        "keyed": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "second": {
+            "search": {
+              "request": {
+                "search_type": "query_then_fetch",
+                "indices": [
+                  "xyz*"
+                ],
+                "rest_total_hits_as_int": true,
+                "body": {
+                  "size": 0,
+                  "query": {
+                    "bool": {
+                      "must": [],
+                      "filter": [
+                        {
+                          "range": {
+                            "@timestamp": {
+                              "gte": "now-60m",
+                              "lt": "now/m"
+                            }
+                          }
+                        },
+                        {
+                          "match_phrase": {
+                            "service.name": "some_service_name"
+                          }
+                        },
+                        {
+                          "match_phrase": {
+                            "error.code": "some_error_code"
+                          }
+                        }
+                      ],
+                      "should": [],
+                      "must_not": []
+                    }
+                  },
+                  "aggs": {
+                    "traffics": {
+                      "date_range": {
+                        "field": "@timestamp",
+                        "ranges": [
+                          {
+                            "key": "err_event_traffic",
+                            "from": "now-60m"
+                          }
+                        ],
+                        "keyed": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "return ctx.payload.first.aggregations.traffics.buckets.bus_event_traffic.doc_count == 0 && ctx.payload.second.aggregations.traffics.buckets.err_event_traffic.doc_count >= 18",
+      "lang": "painless"
+    }
+  },
+  "actions": {
+    "send_email": {
+      "throttle_period_in_millis": 3600000,
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply-ELK@company-name.com",
+        "to": [
+          "xyz@company-name.com"
+        ],
+        "subject": "some subject",
+        "body": {
+          "text": ""
+        }
+      }
+    }
+  }
+}

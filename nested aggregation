@@ -1,0 +1,171 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "30m"
+    }
+  },
+  "input": {
+    "search": {
+      "request": {
+        "search_type": "query_then_fetch",
+        "indices": [
+          "abc-*"
+        ],
+        "rest_total_hits_as_int": true,
+        "body": {
+          "size": 100,
+          "_source": [
+            "PENDING_MSGS",
+            "@timestamp",
+            "host.name"
+          ],
+          "query": {
+            "bool": {
+              "must": [],
+              "filter": [
+                {
+                  "bool": {
+                    "filter": [
+                      {
+                        "bool": {
+                          "should": [
+                            {
+                              "match_phrase": {
+                                "log.file.path": "/apps/logs/some_file_path"
+                              }
+                            }
+                          ],
+                          "minimum_should_match": 1
+                        }
+                      },
+                      {
+                        "bool": {
+                          "filter": [
+                            {
+                              "bool": {
+                                "should": [
+                                  {
+                                    "exists": {
+                                      "field": "host.name"
+                                    }
+                                  }
+                                ],
+                                "minimum_should_match": 1
+                              }
+                            },
+                            {
+                              "bool": {
+                                "filter": [
+                                  {
+                                    "bool": {
+                                      "should": [
+                                        {
+                                          "match_phrase": {
+                                            "PORT.keyword": "7000"
+                                          }
+                                        }
+                                      ],
+                                      "minimum_should_match": 1
+                                    }
+                                  },
+                                  {
+                                    "bool": {
+                                      "should": [
+                                        {
+                                          "range": {
+                                            "PENDING_Message": {
+                                              "gt": 1500
+                                            }
+                                          }
+                                        }
+                                      ],
+                                      "minimum_should_match": 1
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "now-30m/m",
+                      "lte": "now",
+                      "format": "strict_date_optional_time"
+                    }
+                  }
+                }
+              ],
+              "should": [],
+              "must_not": []
+            }
+          },
+          "aggs": {
+            "pending_msg_count": {
+              "terms": {
+                "field": "PENDING_Message"
+              },
+              "aggs": {
+                "time_count": {
+                  "terms": {
+                    "field": "@timestamp"
+                  },
+                  "aggs": {
+                    "hostname_count": {
+                      "terms": {
+                        "field": "host.name.keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition": {
+    "compare": {
+      "ctx.payload.hits.total": {
+        "gt": 0
+      }
+    }
+  },
+  "actions": {
+    "my-logging-action": {
+      "logging": {
+        "level": "info",
+        "text": "There are {{ctx.payload.hits.total}} documents in your index. Threshold is 0."
+      }
+    },
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply-ELK@company-name.com",
+        "to": [
+          "xyz@company-name.com"
+        ],
+        "subject": "Pending Message Count > 1500 in last 30 mins",
+        "body": {
+          "html": """
+
+
+<html>
+<head>
+</head>
+<body>
+Some body here.
+</body>
+</html>
+      """
+        }
+      }
+    }
+  }
+}

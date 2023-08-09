@@ -1,0 +1,139 @@
+{
+  "trigger": {
+    "schedule": {
+      "interval": "1m"
+    }
+  },
+  "input": {
+    "chain": {
+      "inputs": [
+        {
+          "first": {
+            "search": {
+              "request": {
+                "search_type": "query_then_fetch",
+                "indices": [
+                  "abc-*"
+                ],
+                "rest_total_hits_as_int": true,
+                "body": {
+                  "size": 0,
+                  "query": {
+                    "bool": {
+                      "filter": [
+                        {
+                          "bool": {
+                            "filter": [
+                              {
+                                "bool": {
+                                  "should": [
+                                    {
+                                      "bool": {
+                                        "should": [
+                                          {
+                                            "match_phrase": {
+                                              "labels.kind.keyword": "error"
+                                            }
+                                          }
+                                        ],
+                                        "minimum_should_match": 1
+                                      }
+                                    }
+                                  ],
+                                  "minimum_should_match": 1
+                                }
+                              },
+                              {
+                                "bool": {
+                                  "should": [
+                                    {
+                                      "bool": {
+                                        "should": [
+                                          {
+                                            "match_phrase": {
+                                              "some_field_name": "some_value"
+                                            }
+                                          }
+                                        ],
+                                        "minimum_should_match": 1
+                                      }
+                                    }
+                                  ],
+                                  "minimum_should_match": 1
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "range": {
+                            "@timestamp": {
+                              "gte": "now-8d",
+                              "lt": "now/m"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "aggs": {
+                    "traffic": {
+                      "date_range": {
+                        "field": "@timestamp",
+                        "ranges": [
+                          {
+                            "key": "current_traffic",
+                            "from": "now-2m/m",
+                            "to": "now-1m/m"
+                          },
+                          {
+                            "key": "traffic_week-ago",
+                            "from": "now-8m/m",
+                            "to": "now-7m/m"
+                          }
+                        ],
+                        "keyed": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "second": {
+            "transform": {
+              "script": {
+                "source": "return [ 'diff_percentage' : (ctx.payload.first.aggregations.traffic.buckets.current_traffic.doc_count - ctx.payload.first.aggregations.traffic.buckets.traffic_week_ago.doc_count) * 100 / ctx.payload.first.aggregations.traffic.buckets.traffic_week_ago.doc_count  ]",
+                "lang": "painless"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "condition": {
+    "script": {
+      "source": "return ctx.payload.first.aggregations.traffic.buckets.size() > 0 && ctx.payload.first.aggregations.traffic.buckets.traffic_week_ago.doc_count >=0 && ctx.payload.first.aggregations.traffic.buckets.current_traffic.doc_count >=0 && ctx.payload.second.diff_percentage <=-80  ",
+      "lang": "painless"
+    }
+  },
+  "actions": {
+    "send_email": {
+      "email": {
+        "profile": "standard",
+        "from": "DonotReply@company-name.com",
+        "to": [
+          "xyz@company-name.com"
+        ],
+        "subject": "some subject",
+        "body": {
+      
+          "some body here."
+      }
+      }
+    }
+  }
+}
